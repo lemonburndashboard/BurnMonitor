@@ -22,7 +22,7 @@ const io = new Server(server, {
   }
 });
 
-const PORT = process.env.PORT || 3001;
+const PORT     = 3001;
 const API_BASE = "https://explorer.lemonchain.io/api";
 
 // ── Known burn addresses ──────────────────────────────────────────────────────
@@ -414,6 +414,21 @@ io.on("connection", socket => {
   try {
     const { burnStats, lemxStats } = get30DayStats();
     socket.emit("stats30d", { burnStats, lemxStats });
+    
+    // Send last 12 events for recent events log
+    const recentEvents = [...burnEvents, ...stakeEvents]
+      .sort((a, b) => b.timestamp - a.timestamp)  // Sort newest first
+      .slice(0, 12)  // Take last 12
+      .map(evt => ({
+        type: evt.token ? 'burn' : 'stake',
+        token: evt.token || 'LEMX',
+        amount: evt.amount,
+        hash: evt.hash,
+        timestamp: evt.timestamp
+      }));
+    
+    socket.emit("recentEvents", recentEvents);
+    
   } catch (err) {
     console.error(`Error sending stats to ${socket.id}:`, err.message);
   }

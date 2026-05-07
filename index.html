@@ -1242,6 +1242,17 @@ function App(){
       setStakeCount(lemxStats.count);
     });
 
+    socket.on('recentEvents', (events) => {
+      // Populate the logs with recent events from server
+      events.forEach(evt => {
+        const tkColor = evt.token !== 'LEMX' 
+          ? TOKEN_BY_SYM[evt.token]?.color || '#a7ff3e'
+          : LEMX_TOKEN.color;
+        
+        appendLog(evt.token, tkColor, evt.amount, evt.hash, evt.type);
+      });
+    });
+
     socket.on('stake', ({ amount, hash }) => {
       const tkColor = LEMX_TOKEN.color;
 
