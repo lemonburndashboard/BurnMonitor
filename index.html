@@ -1,0 +1,1370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LemonBurn — Burn Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#05070a;
+    --bg2:#0a0d12;
+    --ink:#e6f4dc;
+    --dim:#7a8a78;
+    --dim2:#475148;
+    --line:rgba(167,255,62,.14);
+    --line2:rgba(167,255,62,.06);
+    --green:#a7ff3e;
+    --cyan:#3bf0d0;
+    --violet:#b67dff;
+    --pink:#ff5fa8;
+    --amber:#ffe14a;
+    --red:#ff6b6b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:'JetBrains Mono',ui-monospace,monospace;
+    font-feature-settings:"ss01","ss02";
+    -webkit-font-smoothing:antialiased;
+  }
+  body{
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(59,240,208,.05), transparent 60%),
+      radial-gradient(900px 500px at 10% 110%, rgba(182,125,255,.05), transparent 60%),
+      linear-gradient(180deg,#05070a 0%, #04060a 100%);
+    min-height:100vh;
+  }
+  .grid-bg{
+    position:fixed;inset:0;pointer-events:none;
+    background-image:
+      linear-gradient(rgba(167,255,62,.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(167,255,62,.025) 1px, transparent 1px);
+    background-size:48px 48px;
+    mask-image:radial-gradient(ellipse at center, black 30%, transparent 80%);
+    z-index:0;
+  }
+  .scanlines{
+    position:fixed;inset:0;pointer-events:none;z-index:1;opacity:.18;
+    background:repeating-linear-gradient(180deg, rgba(255,255,255,.04) 0 1px, transparent 1px 3px);
+    mix-blend-mode:overlay;
+  }
+  #root{position:relative;z-index:2}
+  ::selection{background:rgba(167,255,62,.35);color:#05070a}
+
+  .panel{
+    position:relative;
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, rgba(10,13,18,.85), rgba(6,8,12,.85));
+    border-radius:6px;
+  }
+  .panel::before, .panel::after{
+    content:"";position:absolute;width:8px;height:8px;border:1px solid var(--line);
+    pointer-events:none;
+  }
+  .panel::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
+  .panel::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
+  .corners > i{
+    position:absolute;width:8px;height:8px;border:1px solid var(--line);
+    pointer-events:none;
+  }
+  .corners > i.tr{top:-1px;right:-1px;border-left:0;border-bottom:0}
+  .corners > i.bl{bottom:-1px;left:-1px;border-right:0;border-top:0}
+
+  .panel-hd{
+    display:flex;align-items:center;gap:8px;
+    padding:8px 12px;
+    color:var(--dim);
+    font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+    border-bottom:1px dashed var(--line);
+  }
+  .panel-hd .diamond{width:8px;height:8px;background:var(--green);transform:rotate(45deg);box-shadow:0 0 8px var(--green)}
+  .panel-hd .sep{flex:1;border-bottom:1px dashed var(--line2);align-self:center;margin:0 6px;height:1px}
+
+  .tag{
+    display:inline-flex;align-items:center;gap:6px;
+    border:1px solid var(--line);padding:2px 8px;border-radius:3px;
+    color:var(--dim);font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+  }
+  .tag .dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+
+  .kpi-card{
+    border:1px solid var(--line);
+    padding:8px 12px;border-radius:4px;
+    display:flex;flex-direction:column;gap:2px;
+    min-width:0;
+  }
+  .kpi-label{font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim2);line-height:1.2}
+  .kpi-value{font-size:28px;font-weight:700;letter-spacing:-.01em;line-height:1;font-variant-numeric:tabular-nums;text-shadow:0 0 14px currentColor}
+  .kpi-sub{font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim2);margin-top:4px;line-height:1.2}
+
+  .tok{
+    position:relative;border:1px solid var(--card);
+    border-radius:4px;padding:10px 12px;
+    background:linear-gradient(180deg, rgba(255,255,255,.01), transparent 60%);
+    cursor:pointer;
+    transition:transform .12s ease, border-color .15s ease, background .15s ease;
+    min-height:96px;
+    display:flex;flex-direction:column;justify-content:space-between;
+    overflow:hidden;
+  }
+  .tok:hover{transform:translateY(-1px)}
+  .tok::before{
+    content:"";position:absolute;inset:0;
+    background:radial-gradient(120% 80% at 0% 0%, rgba(255,255,255,.04), transparent 60%);
+    pointer-events:none;
+  }
+  .tok-hd{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .tok-sym{font-weight:700;letter-spacing:.04em;font-size:14px}
+  .tok-cnt{font-size:10px;letter-spacing:.1em;color:var(--dim);
+    border:1px solid var(--card);padding:1px 6px;border-radius:3px;min-width:24px;text-align:center}
+  .tok-lbl{font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim2);margin-top:8px}
+  .tok-val{font-size:20px;font-weight:700;letter-spacing:-.01em;font-variant-numeric:tabular-nums;color:var(--card);text-shadow:0 0 12px currentColor}
+  .tok.dim{opacity:.28;filter:saturate(.4)}
+  .tok.active{box-shadow:0 0 0 1px var(--card), 0 0 24px -6px var(--card)}
+
+  .row-flat{display:flex;align-items:center;gap:10px;font-size:11px}
+  .hashy{color:var(--dim2);font-size:10px;letter-spacing:.04em}
+  .lbl-mini{font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim)}
+
+  .bar-track{height:6px;background:rgba(255,255,255,.05);border-radius:3px;flex:1;overflow:hidden;position:relative}
+  .bar-fill{height:100%;border-radius:3px;background:currentColor;box-shadow:0 0 8px currentColor;transition:width 1.2s cubic-bezier(.2,.8,.2,1)}
+
+  .clock{font-size:34px;font-weight:700;letter-spacing:.04em;line-height:1;font-variant-numeric:tabular-nums;text-shadow:0 0 12px currentColor}
+  .clock-date{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);margin-top:6px}
+
+  .blink{animation:blink 1.1s steps(2,end) infinite}
+  @keyframes blink{50%{opacity:.25}}
+
+  .sweep{
+    position:absolute;top:0;bottom:0;width:1px;background:linear-gradient(180deg, transparent, var(--green), transparent);
+    box-shadow:0 0 12px var(--green);
+    pointer-events:none;
+  }
+
+  .heart-wrap{position:relative}
+  .heart-wrap .axis{
+    position:absolute;inset:0;pointer-events:none;
+    background-image:
+      linear-gradient(rgba(167,255,62,.05) 1px, transparent 1px);
+    background-size:100% 25%;
+  }
+
+  .term-prompt{
+    display:inline-flex;align-items:center;gap:8px;
+    border:1px dashed var(--line);
+    padding:4px 10px;border-radius:3px;
+    color:var(--green);
+    font-size:10px;letter-spacing:.22em;text-transform:uppercase;
+    text-shadow:0 0 8px rgba(167,255,62,.5);
+    background:rgba(167,255,62,.03);
+  }
+  .term-prompt .caret{color:var(--green);font-weight:700}
+  .term-cursor{
+    display:inline-block;width:7px;height:11px;
+    background:var(--green);
+    box-shadow:0 0 8px var(--green);
+    animation:term-blink 1s steps(2,end) infinite;
+    vertical-align:middle;
+  }
+  @keyframes term-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+
+  .secured{
+    margin-top:auto;
+    border:1px dashed var(--line);
+    padding:6px 8px;
+    font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);
+    display:flex;align-items:center;gap:6px;
+  }
+  .secured .caret{color:var(--green)}
+
+  .logo{
+    width:54px;height:54px;border:1px solid var(--line);border-radius:6px;
+    display:grid;place-items:center;background:radial-gradient(circle at 30% 30%, rgba(167,255,62,.15), transparent 60%);
+    flex-shrink:0;position:relative;
+  }
+  .logo svg{width:28px;height:28px}
+
+  .mono-num{font-variant-numeric:tabular-nums}
+  .mute{color:var(--dim)}
+  .mute2{color:var(--dim2)}
+  .glow-g{color:var(--green);text-shadow:0 0 10px var(--green)}
+  .glow-c{color:var(--cyan);text-shadow:0 0 10px var(--cyan)}
+  .glow-v{color:var(--violet);text-shadow:0 0 10px var(--violet)}
+  .glow-p{color:var(--pink);text-shadow:0 0 10px var(--pink)}
+
+  .donut-center{
+    position:absolute;inset:0;display:grid;place-items:center;text-align:center;pointer-events:none;
+  }
+  .donut-center .top{font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);line-height:1}
+  .donut-center .num{font-size:24px;font-weight:700;color:#e8eee0;text-shadow:0 0 12px rgba(232,238,224,.45);line-height:1;margin-top:4px}
+
+  .stage{padding:14px;display:flex;flex-direction:column;gap:14px;max-width:1280px;margin:0 auto}
+
+  .topbar{
+    display:grid;grid-template-columns: minmax(420px,2.2fr) 1fr 1.1fr;
+    gap:10px;align-items:stretch;
+  }
+  .topbar > .panel{padding:10px 12px;display:flex;align-items:center;gap:12px}
+
+  .mid{display:grid;grid-template-columns: 1.1fr 1.4fr 1fr;gap:14px}
+  @media (max-width: 1100px){
+    .topbar{grid-template-columns:1fr 1fr 1fr;}
+    .topbar > .panel:first-child{grid-column:1/-1}
+    .topbar > .panel:last-child{grid-column:1/-1}
+    .mid{grid-template-columns:1fr}
+  }
+
+  .grid-tok{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+  @media (max-width: 900px){.grid-tok{grid-template-columns:repeat(2,1fr)}}
+
+  .burn-row{display:grid;grid-template-columns: 14px 60px 1fr auto auto;gap:10px;align-items:center;padding:6px 0;border-bottom:1px dashed var(--line2)}
+  .burn-row:last-child{border-bottom:0}
+  .burn-row .dot{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
+  .burn-row .sym{font-weight:700;letter-spacing:.04em}
+  .burn-row .amt{color:currentColor;font-weight:700;font-variant-numeric:tabular-nums;text-shadow:0 0 8px currentColor}
+
+  .log-panel{overflow:hidden}
+  .log-feed{
+    flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;
+    padding:10px 14px 12px;
+    font-family:'JetBrains Mono',ui-monospace,monospace;
+    font-size:13px;line-height:1.7;
+    background:
+      linear-gradient(180deg, rgba(167,255,62,.02), transparent 30%),
+      rgba(0,0,0,.25);
+    scrollbar-width:thin;scrollbar-color:rgba(167,255,62,.25) transparent;
+  }
+  .log-feed::-webkit-scrollbar{width:6px}
+  .log-feed::-webkit-scrollbar-thumb{background:rgba(167,255,62,.2);border-radius:3px}
+  .log-line{
+    display:flex;align-items:center;gap:10px;
+    white-space:nowrap;
+    animation:log-in .25s ease-out;
+    color:var(--c);
+  }
+  .log-line .log-hash{margin-left:auto}
+  .log-line + .log-line{margin-top:1px}
+  @keyframes log-in{
+    from{opacity:0;transform:translateX(-4px);background:rgba(167,255,62,.08)}
+    to{opacity:1;transform:translateX(0);background:transparent}
+  }
+  .log-ts{color:var(--dim2);font-size:11px}
+  .log-tag{
+    color:#0a0d12;background:var(--c);
+    font-weight:700;font-size:9px;letter-spacing:.12em;
+    padding:1px 4px;border-radius:2px;
+    box-shadow:0 0 8px var(--c);
+  }
+  .log-sym{color:var(--c);font-weight:700;text-shadow:0 0 6px var(--c);white-space:pre}
+  .log-arrow{color:var(--dim2)}
+  .log-amt{color:var(--c);font-weight:700;font-variant-numeric:tabular-nums;text-shadow:0 0 6px var(--c);white-space:pre}
+  .log-hash{color:var(--dim);font-size:11px}
+  .log-block{color:var(--dim2);font-size:11px;margin-left:auto}
+  .log-stk{
+    font-size:8.5px;letter-spacing:.18em;font-weight:700;
+    padding:1px 4px;border:1px solid currentColor;border-radius:2px;
+    line-height:1;color:var(--c);
+    box-shadow:0 0 6px var(--c) inset, 0 0 4px var(--c);
+  }
+  .log-cursor{
+    display:inline-block;width:4px;height:6px;
+    background:var(--green);box-shadow:0 0 4px var(--green);
+    animation:term-blink 1s steps(2,end) infinite;
+    margin-left:4px;
+  }
+
+  .caption-row{display:flex;align-items:center;gap:14px;color:var(--dim);font-size:10px;letter-spacing:.22em;text-transform:uppercase}
+  .caption-row .sep{flex:1;border-bottom:1px dashed var(--line2);height:1px}
+
+  .btn-ghost{
+    appearance:none;border:1px solid var(--line);background:transparent;color:var(--dim);
+    font-family:inherit;font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+    padding:5px 10px;border-radius:3px;cursor:pointer;transition:all .15s ease;
+  }
+  .btn-ghost:hover{border-color:var(--green);color:var(--green)}
+  .btn-ghost.on{border-color:var(--green);color:var(--green);box-shadow:0 0 12px -4px var(--green)}
+
+  .live-pill{
+    display:inline-flex;align-items:center;gap:6px;
+    border:1px solid var(--green);color:var(--green);
+    padding:4px 10px;border-radius:3px;font-size:10px;letter-spacing:.22em;
+    box-shadow:0 0 16px -6px var(--green) inset;
+  }
+  .live-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 1.2s steps(2,end) infinite}
+
+  /* ── Token burn progress bar ─────────────────────────────────────── */
+  .tok-prog-cap{
+    margin:8px -12px 0;padding:5px 10px 0;
+    font-size:8.5px;letter-spacing:.22em;text-transform:uppercase;
+    color:#e8eee0;opacity:.65;
+  }
+  .tok-prog{
+    margin:2px -12px 0;padding:4px 10px 8px;
+    display:flex;align-items:center;gap:6px;
+    font-size:11px;line-height:1;
+    background:linear-gradient(180deg, rgba(0,0,0,.25), rgba(0,0,0,.45));
+  }
+  .tok-prog-bk{color:var(--dim);font-weight:700}
+  .tok-prog-bar{flex:1;display:flex;letter-spacing:0;white-space:nowrap;overflow:hidden;font-size:12px}
+  .tok-prog .pc{color:var(--pc)}
+  .tok-prog .pc.on{text-shadow:0 0 6px var(--pc)}
+  .tok-prog .pc.off{opacity:.4}
+  .tok-prog-pct{
+    color:var(--pc);font-weight:700;font-size:11px;
+    text-shadow:0 0 6px var(--pc);
+    min-width:36px;text-align:right;font-variant-numeric:tabular-nums;
+  }
+
+  .conn-status{
+    display:inline-flex;align-items:center;gap:6px;
+    border:1px solid var(--line);color:var(--dim);
+    padding:4px 10px;border-radius:3px;font-size:10px;letter-spacing:.18em;
+    text-transform:uppercase;
+  }
+  .conn-status.connected{border-color:var(--green);color:var(--green);box-shadow:0 0 16px -6px var(--green) inset;}
+  .conn-status.connecting{border-color:var(--amber);color:var(--amber);}
+  .conn-status.disconnected{border-color:var(--red);color:var(--red);}
+  .conn-status .dot{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor}
+  .conn-status.connected .dot{animation:blink 1.2s steps(2,end) infinite}
+</style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <div id="scanlines-host"></div>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+
+  <!-- ── Tweaks Panel ──────────────────────────────────────────────── -->
+  <script type="text/babel">
+const __TWEAKS_STYLE = `
+  .twk-panel{position:fixed;right:16px;bottom:16px;z-index:2147483646;width:280px;
+    max-height:calc(100vh - 32px);display:flex;flex-direction:column;
+    background:rgba(250,249,247,.78);color:#29261b;
+    -webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);
+    border:.5px solid rgba(255,255,255,.6);border-radius:14px;
+    box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 12px 40px rgba(0,0,0,.18);
+    font:11.5px/1.4 ui-sans-serif,system-ui,-apple-system,sans-serif;overflow:hidden}
+  .twk-hd{display:flex;align-items:center;justify-content:space-between;
+    padding:10px 8px 10px 14px;cursor:move;user-select:none}
+  .twk-hd b{font-size:12px;font-weight:600;letter-spacing:.01em}
+  .twk-x{appearance:none;border:0;background:transparent;color:rgba(41,38,27,.55);
+    width:22px;height:22px;border-radius:6px;cursor:default;font-size:13px;line-height:1}
+  .twk-x:hover{background:rgba(0,0,0,.06);color:#29261b}
+  .twk-body{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px;
+    overflow-y:auto;overflow-x:hidden;min-height:0;
+    scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.15) transparent}
+  .twk-body::-webkit-scrollbar{width:8px}
+  .twk-body::-webkit-scrollbar-track{background:transparent;margin:2px}
+  .twk-body::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:4px;
+    border:2px solid transparent;background-clip:content-box}
+  .twk-body::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.25);
+    border:2px solid transparent;background-clip:content-box}
+  .twk-row{display:flex;flex-direction:column;gap:5px}
+  .twk-row-h{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}
+  .twk-lbl{display:flex;justify-content:space-between;align-items:baseline;
+    color:rgba(41,38,27,.72)}
+  .twk-lbl>span:first-child{font-weight:500}
+  .twk-val{color:rgba(41,38,27,.5);font-variant-numeric:tabular-nums}
+  .twk-sect{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    color:rgba(41,38,27,.45);padding:10px 0 0}
+  .twk-sect:first-child{padding-top:0}
+  .twk-field{appearance:none;width:100%;height:26px;padding:0 8px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:7px;
+    background:rgba(255,255,255,.6);color:inherit;font:inherit;outline:none}
+  .twk-field:focus{border-color:rgba(0,0,0,.25);background:rgba(255,255,255,.85)}
+  .twk-slider{appearance:none;-webkit-appearance:none;width:100%;height:4px;margin:6px 0;
+    border-radius:999px;background:rgba(0,0,0,.12);outline:none}
+  .twk-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+    width:14px;height:14px;border-radius:50%;background:#fff;
+    border:.5px solid rgba(0,0,0,.12);box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:default}
+  .twk-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
+    background:#fff;border:.5px solid rgba(0,0,0,.12);box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:default}
+  .twk-seg{position:relative;display:flex;padding:2px;border-radius:8px;
+    background:rgba(0,0,0,.06);user-select:none}
+  .twk-seg-thumb{position:absolute;top:2px;bottom:2px;border-radius:6px;
+    background:rgba(255,255,255,.9);box-shadow:0 1px 2px rgba(0,0,0,.12);
+    transition:left .15s cubic-bezier(.3,.7,.4,1),width .15s}
+  .twk-seg.dragging .twk-seg-thumb{transition:none}
+  .twk-seg button{appearance:none;position:relative;z-index:1;flex:1;border:0;
+    background:transparent;color:inherit;font:inherit;font-weight:500;min-height:22px;
+    border-radius:6px;cursor:default;padding:4px 6px;line-height:1.2;overflow-wrap:anywhere}
+  .twk-toggle{position:relative;width:32px;height:18px;border:0;border-radius:999px;
+    background:rgba(0,0,0,.15);transition:background .15s;cursor:default;padding:0}
+  .twk-toggle[data-on="1"]{background:#34c759}
+  .twk-toggle i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
+    background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+  .twk-toggle[data-on="1"] i{transform:translateX(14px)}
+  .twk-num{display:flex;align-items:center;height:26px;padding:0 0 0 8px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:7px;background:rgba(255,255,255,.6)}
+  .twk-num-lbl{font-weight:500;color:rgba(41,38,27,.6);cursor:ew-resize;user-select:none;padding-right:8px}
+  .twk-num input{flex:1;min-width:0;height:100%;border:0;background:transparent;
+    font:inherit;font-variant-numeric:tabular-nums;text-align:right;padding:0 8px 0 0;
+    outline:none;color:inherit;-moz-appearance:textfield}
+  .twk-num input::-webkit-inner-spin-button,.twk-num input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+  .twk-num-unit{padding-right:8px;color:rgba(41,38,27,.45)}
+  .twk-btn{appearance:none;height:26px;padding:0 12px;border:0;border-radius:7px;
+    background:rgba(0,0,0,.78);color:#fff;font:inherit;font-weight:500;cursor:default}
+  .twk-btn:hover{background:rgba(0,0,0,.88)}
+  .twk-btn.secondary{background:rgba(0,0,0,.06);color:inherit}
+  .twk-btn.secondary:hover{background:rgba(0,0,0,.1)}
+  .twk-swatch{appearance:none;-webkit-appearance:none;width:56px;height:22px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:6px;padding:0;cursor:default;
+    background:transparent;flex-shrink:0}
+  .twk-swatch::-webkit-color-swatch-wrapper{padding:0}
+  .twk-swatch::-webkit-color-swatch{border:0;border-radius:5.5px}
+  .twk-swatch::-moz-color-swatch{border:0;border-radius:5.5px}
+`;
+
+function useTweaks(defaults) {
+  const [values, setValues] = React.useState(defaults);
+  const setTweak = React.useCallback((keyOrEdits, val) => {
+    const edits = typeof keyOrEdits === 'object' && keyOrEdits !== null
+      ? keyOrEdits : { [keyOrEdits]: val };
+    setValues((prev) => ({ ...prev, ...edits }));
+    window.parent.postMessage({ type: '__edit_mode_set_keys', edits }, '*');
+  }, []);
+  return [values, setTweak];
+}
+
+function TweaksPanel({ title = 'Tweaks', children }) {
+  const [open, setOpen] = React.useState(false);
+  const dragRef = React.useRef(null);
+  const offsetRef = React.useRef({ x: 16, y: 16 });
+  const PAD = 16;
+
+  const clampToViewport = React.useCallback(() => {
+    const panel = dragRef.current;
+    if (!panel) return;
+    const w = panel.offsetWidth, h = panel.offsetHeight;
+    const maxRight = Math.max(PAD, window.innerWidth - w - PAD);
+    const maxBottom = Math.max(PAD, window.innerHeight - h - PAD);
+    offsetRef.current = {
+      x: Math.min(maxRight, Math.max(PAD, offsetRef.current.x)),
+      y: Math.min(maxBottom, Math.max(PAD, offsetRef.current.y)),
+    };
+    panel.style.right = offsetRef.current.x + 'px';
+    panel.style.bottom = offsetRef.current.y + 'px';
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    clampToViewport();
+    const ro = new ResizeObserver(clampToViewport);
+    ro.observe(document.documentElement);
+    return () => ro.disconnect();
+  }, [open, clampToViewport]);
+
+  React.useEffect(() => {
+    const onMsg = (e) => {
+      const t = e?.data?.type;
+      if (t === '__activate_edit_mode') setOpen(true);
+      else if (t === '__deactivate_edit_mode') setOpen(false);
+    };
+    window.addEventListener('message', onMsg);
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  const dismiss = () => {
+    setOpen(false);
+    window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*');
+  };
+
+  const onDragStart = (e) => {
+    const panel = dragRef.current;
+    if (!panel) return;
+    const r = panel.getBoundingClientRect();
+    const sx = e.clientX, sy = e.clientY;
+    const startRight = window.innerWidth - r.right;
+    const startBottom = window.innerHeight - r.bottom;
+    const move = (ev) => {
+      offsetRef.current = {
+        x: startRight - (ev.clientX - sx),
+        y: startBottom - (ev.clientY - sy),
+      };
+      clampToViewport();
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
+  if (!open) return null;
+  return (
+    <>
+      <style>{__TWEAKS_STYLE}</style>
+      <div ref={dragRef} className="twk-panel" style={{ right: offsetRef.current.x, bottom: offsetRef.current.y }}>
+        <div className="twk-hd" onMouseDown={onDragStart}>
+          <b>{title}</b>
+          <button className="twk-x" onMouseDown={(e) => e.stopPropagation()} onClick={dismiss}>✕</button>
+        </div>
+        <div className="twk-body">{children}</div>
+      </div>
+    </>
+  );
+}
+
+function TweakSection({ label }) {
+  return <div className="twk-sect">{label}</div>;
+}
+
+function TweakToggle({ label, value, onChange }) {
+  return (
+    <div className="twk-row twk-row-h">
+      <div className="twk-lbl"><span>{label}</span></div>
+      <button type="button" className="twk-toggle" data-on={value ? '1' : '0'}
+              role="switch" aria-checked={!!value}
+              onClick={() => onChange(!value)}><i /></button>
+    </div>
+  );
+}
+
+function TweakRadio({ label, value, options, onChange }) {
+  const trackRef = React.useRef(null);
+  const [dragging, setDragging] = React.useState(false);
+  const opts = options.map((o) => (typeof o === 'object' ? o : { value: o, label: o }));
+  const idx = Math.max(0, opts.findIndex((o) => o.value === value));
+  const n = opts.length;
+  const valueRef = React.useRef(value);
+  valueRef.current = value;
+
+  const segAt = (clientX) => {
+    const r = trackRef.current.getBoundingClientRect();
+    const inner = r.width - 4;
+    const i = Math.floor(((clientX - r.left - 2) / inner) * n);
+    return opts[Math.max(0, Math.min(n - 1, i))].value;
+  };
+
+  const onPointerDown = (e) => {
+    setDragging(true);
+    const v0 = segAt(e.clientX);
+    if (v0 !== valueRef.current) onChange(v0);
+    const move = (ev) => {
+      if (!trackRef.current) return;
+      const v = segAt(ev.clientX);
+      if (v !== valueRef.current) onChange(v);
+    };
+    const up = () => {
+      setDragging(false);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  return (
+    <div className="twk-row">
+      <div className="twk-lbl"><span>{label}</span></div>
+      <div ref={trackRef} role="radiogroup" onPointerDown={onPointerDown}
+           className={dragging ? 'twk-seg dragging' : 'twk-seg'}>
+        <div className="twk-seg-thumb"
+             style={{ left: `calc(2px + ${idx} * (100% - 4px) / ${n})`,
+                      width: `calc((100% - 4px) / ${n})` }} />
+        {opts.map((o) => (
+          <button key={o.value} type="button" role="radio" aria-checked={o.value === value}>
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { useTweaks, TweaksPanel, TweakSection, TweakToggle, TweakRadio });
+  </script>
+
+  <!-- ── Heartbeat ─────────────────────────────────────────────────── -->
+  <script type="text/babel">
+function Heartbeat({ color = '#ffd83a', height = 170, pushEventRef }) {
+  const W = 1200;
+  const H = height;
+  const HIST_FRAC = 0.78;
+  const HIST_PAD_L = 14;
+  const HIST_PAD_R = 14;
+  const HIST_X0 = HIST_PAD_L;
+  const HIST_X1 = W * HIST_FRAC - HIST_PAD_R;
+  const HIST_W = HIST_X1 - HIST_X0;
+  const RADAR_X0 = W * HIST_FRAC + 14;
+  const RADAR_X1 = W - 14;
+  const RADAR_SIZE = Math.min(RADAR_X1 - RADAR_X0, H - 28);
+  const RADAR_CX = (RADAR_X0 + RADAR_X1) / 2;
+  const RADAR_CY = H / 2;
+  const RADAR_R = RADAR_SIZE / 2;
+
+  const SAMPLE_DURATION_MS = 24 * 1000;
+
+  const eventsRef = React.useRef([]);
+  const ripplesRef = React.useRef([]);
+  const lastEventRef = React.useRef({ at: 0, color });
+
+  const histLayerRef = React.useRef(null);
+  const radarLayerRef = React.useRef(null);
+  const scanRef = React.useRef(null);
+  const dotRef = React.useRef(null);
+  const tickerRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!pushEventRef) return;
+    pushEventRef.current = (evt) => {
+      const now = performance.now();
+      const c = evt.color || color;
+      ripplesRef.current.push({ startedAt: now, color: c });
+      lastEventRef.current = { at: now, color: c };
+      eventsRef.current.push({
+        startedAt: now,
+        color: c,
+        sym: evt.sym,
+        kind: evt.kind || 'burn',
+        amp: 0.55 + Math.random() * 0.4,
+      });
+      if (eventsRef.current.length > 80) eventsRef.current.shift();
+    };
+  }, [color, pushEventRef]);
+
+  React.useEffect(() => {
+    let raf;
+    const start = performance.now();
+
+    function tick(now) {
+      const baselineY = H / 2 + 12;
+      const ampMax = H * 0.46;
+      const colW = 6;
+      const blockH = 5;
+      const blockGap = 1;
+
+      const events = eventsRef.current;
+      const live = [];
+      const segs = [];
+      for (const e of events) {
+        const age = now - e.startedAt;
+        const t = age / SAMPLE_DURATION_MS;
+        if (t > 1) continue;
+        const x = HIST_X1 - t * HIST_W;
+        if (x < HIST_X0 - 8) continue;
+        live.push(e);
+
+        const fadeIn = Math.min(1, age / 220);
+        const alpha = fadeIn * (0.35 + 0.65 * (1 - t));
+        const colH = ampMax * e.amp;
+        const blocks = Math.max(2, Math.round(colH / (blockH + blockGap)));
+
+        if (e.kind === 'stake') {
+          const left = (x - colW/2 + 1).toFixed(1);
+          const right = (x + colW/2 - 1).toFixed(1);
+          const top = (baselineY - colH).toFixed(1);
+          const bot = baselineY.toFixed(1);
+          segs.push(
+            `<line x1="${left}" y1="${top}" x2="${left}" y2="${bot}" stroke="${e.color}" stroke-width="1" opacity="${(alpha*0.55).toFixed(2)}"/>` +
+            `<line x1="${right}" y1="${top}" x2="${right}" y2="${bot}" stroke="${e.color}" stroke-width="1" opacity="${(alpha*0.55).toFixed(2)}"/>`
+          );
+          for (let i = 0; i < blocks; i++) {
+            const y = baselineY - (i + 0.5) * (blockH + blockGap);
+            segs.push(`<line x1="${(x - colW/2 + 2).toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x + colW/2 - 2).toFixed(1)}" y2="${y.toFixed(1)}" stroke="${e.color}" stroke-width="1" opacity="${(alpha*0.7).toFixed(2)}"/>`);
+          }
+          const capY = baselineY - colH - 3;
+          segs.push(`<polyline points="${(x-4).toFixed(1)},${(capY+3).toFixed(1)} ${x.toFixed(1)},${capY.toFixed(1)} ${(x+4).toFixed(1)},${(capY+3).toFixed(1)}" fill="none" stroke="${e.color}" stroke-width="1.2" opacity="${alpha.toFixed(2)}" filter="url(#hb-glow)"/>`);
+          segs.push(`<line x1="${(x - 4).toFixed(1)}" y1="${baselineY.toFixed(1)}" x2="${(x + 4).toFixed(1)}" y2="${baselineY.toFixed(1)}" stroke="${e.color}" stroke-width="1.2" opacity="${alpha.toFixed(2)}"/>`);
+          continue;
+        }
+        for (let i = 0; i < blocks; i++) {
+          const y = baselineY - (i + 1) * (blockH + blockGap);
+          const a = alpha * (i === blocks - 1 ? 0.9 : 1);
+          segs.push(`<rect x="${(x - colW/2).toFixed(1)}" y="${y.toFixed(1)}" width="${colW}" height="${blockH}" fill="${e.color}" opacity="${a.toFixed(2)}" rx="0.5"/>`);
+        }
+        const capY = baselineY - colH - 1;
+        segs.push(`<rect x="${(x - colW/2 - 1).toFixed(1)}" y="${capY.toFixed(1)}" width="${colW + 2}" height="2" fill="${e.color}" opacity="${alpha}" filter="url(#hb-glow)"/>`);
+        segs.push(`<line x1="${(x - 3).toFixed(1)}" y1="${baselineY.toFixed(1)}" x2="${(x + 3).toFixed(1)}" y2="${baselineY.toFixed(1)}" stroke="${e.color}" stroke-width="1" opacity="${alpha}"/>`);
+      }
+      eventsRef.current = live;
+
+      segs.unshift(`<line x1="${HIST_X0}" y1="${baselineY}" x2="${HIST_X1}" y2="${baselineY}" stroke="${color}" stroke-opacity=".35" stroke-width=".8" stroke-dasharray="2 4"/>`);
+
+      if (histLayerRef.current) histLayerRef.current.innerHTML = segs.join('');
+
+      const ripples = ripplesRef.current;
+      const RIPPLE_DUR = 1500;
+      const liveR = ripples.filter(r => now - r.startedAt < RIPPLE_DUR);
+      ripplesRef.current = liveR;
+      const rparts = [];
+      for (const r of liveR) {
+        const t = (now - r.startedAt) / RIPPLE_DUR;
+        const radius = 4 + t * (RADAR_R - 4);
+        const opacity = (1 - t) * 0.85;
+        const x = RADAR_CX - radius;
+        const y = RADAR_CY - radius;
+        const s = radius * 2;
+        rparts.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${s.toFixed(1)}" height="${s.toFixed(1)}" fill="none" stroke="${r.color}" stroke-width="${(1.4 - t*1.0).toFixed(2)}" opacity="${opacity.toFixed(2)}" filter="url(#hb-glow)"/>`);
+      }
+      if (radarLayerRef.current) radarLayerRef.current.innerHTML = rparts.join('');
+
+      if (scanRef.current) {
+        const angle = ((now - start) / 2400) * 360;
+        scanRef.current.setAttribute('transform', `rotate(${angle} ${RADAR_CX} ${RADAR_CY})`);
+      }
+
+      if (dotRef.current) {
+        const sinceEv = now - lastEventRef.current.at;
+        const pulse = Math.max(0, 1 - sinceEv / 600);
+        const r = 3 + pulse * 4;
+        dotRef.current.setAttribute('r', r.toFixed(1));
+        dotRef.current.setAttribute('fill', lastEventRef.current.color);
+      }
+
+      if (tickerRef.current) {
+        const t = (now / 1000) % 60;
+        tickerRef.current.textContent = `T-24s ◀ ${t.toFixed(1).padStart(4,'0')} ▶ NOW`;
+      }
+
+      raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  return (
+    <div className="heart-wrap" style={{ position:'relative' }}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none"
+           style={{ width:'100%', height:H, display:'block' }}>
+        <defs>
+          <linearGradient id="hb-fade-l" x1="0" x2="1">
+            <stop offset="0" stopColor="#05070a" stopOpacity="1"/>
+            <stop offset=".05" stopColor="#05070a" stopOpacity="0"/>
+          </linearGradient>
+          <pattern id="hb-grid" width="48" height="24" patternUnits="userSpaceOnUse">
+            <path d="M 48 0 L 0 0 0 24" fill="none" stroke={color} strokeOpacity=".05" strokeWidth=".8"/>
+          </pattern>
+          <pattern id="hb-grid-fine" width="12" height="12" patternUnits="userSpaceOnUse">
+            <path d="M 12 0 L 0 0 0 12" fill="none" stroke={color} strokeOpacity=".025" strokeWidth=".5"/>
+          </pattern>
+          <filter id="hb-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="1.6" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <filter id="hb-glow-strong" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3.2" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <rect x={HIST_X0} y="14" width={HIST_X1 - HIST_X0} height={H - 28} fill="url(#hb-grid-fine)"/>
+        <rect x={HIST_X0} y="14" width={HIST_X1 - HIST_X0} height={H - 28} fill="url(#hb-grid)"/>
+
+        {[[HIST_X0, 14, 1, 1],[HIST_X1, 14, -1, 1],[HIST_X0, H-14, 1, -1],[HIST_X1, H-14, -1, -1]].map(([x,y,sx,sy], i) => (
+          <g key={'hb'+i} stroke={color} strokeOpacity=".55" strokeWidth="1" fill="none">
+            <line x1={x} y1={y} x2={x + sx*10} y2={y}/>
+            <line x1={x} y1={y} x2={x} y2={y + sy*8}/>
+          </g>
+        ))}
+
+        <text x={HIST_X0 + 4} y={26} fontFamily="JetBrains Mono, monospace" fontSize="9" letterSpacing="2" fill={color} fillOpacity=".55">◇ EVENTS / TIME</text>
+        <text ref={tickerRef} x={HIST_X1 - 4} y={26} textAnchor="end" fontFamily="JetBrains Mono, monospace" fontSize="9" letterSpacing="2" fill={color} fillOpacity=".55">T-24s ◀ 00.0 ▶ NOW</text>
+
+        {[0.25, 0.5, 0.75, 1.0].map((a, i) => {
+          const y = (H/2 + 12) - a * H * 0.46;
+          return (
+            <g key={'ax'+i}>
+              <line x1={HIST_X0 - 2} y1={y} x2={HIST_X0 + 4} y2={y} stroke={color} strokeOpacity=".3" strokeWidth=".8"/>
+              <text x={HIST_X0 + 8} y={y + 3} fontFamily="JetBrains Mono, monospace" fontSize="8" fill={color} fillOpacity=".35" letterSpacing="1">{String(Math.round(a*100)).padStart(3,' ')}</text>
+            </g>
+          );
+        })}
+
+        <g ref={histLayerRef}/>
+        <rect x={HIST_X0} y="14" width="80" height={H - 28} fill="url(#hb-fade-l)"/>
+        <line x1={W * HIST_FRAC} y1="10" x2={W * HIST_FRAC} y2={H-10} stroke={color} strokeOpacity=".25" strokeDasharray="2 4"/>
+
+        {(() => {
+          const x = RADAR_CX - RADAR_R;
+          const y = RADAR_CY - RADAR_R;
+          const s = RADAR_R * 2;
+          return (
+            <g>
+              <rect x={x} y={y} width={s} height={s} fill={color} fillOpacity=".04"/>
+              {[0.33, 0.66, 1].map((f, i) => {
+                const ss = s * f;
+                return <rect key={'cg'+i} x={RADAR_CX - ss/2} y={RADAR_CY - ss/2} width={ss} height={ss} fill="none" stroke={color} strokeOpacity={0.18 - i*0.04} strokeWidth=".8"/>;
+              })}
+              <line x1={x} y1={RADAR_CY} x2={x+s} y2={RADAR_CY} stroke={color} strokeOpacity=".15" strokeDasharray="3 3"/>
+              <line x1={RADAR_CX} y1={y} x2={RADAR_CX} y2={y+s} stroke={color} strokeOpacity=".15" strokeDasharray="3 3"/>
+              {[[x, y, 1, 1],[x+s, y, -1, 1],[x, y+s, 1, -1],[x+s, y+s, -1, -1]].map(([cx,cy,sx,sy], i) => (
+                <g key={'rb'+i} stroke={color} strokeOpacity=".75" strokeWidth="1.2" fill="none">
+                  <line x1={cx} y1={cy} x2={cx + sx*9} y2={cy}/>
+                  <line x1={cx} y1={cy} x2={cx} y2={cy + sy*9}/>
+                </g>
+              ))}
+              <g ref={scanRef}>
+                <line x1={RADAR_CX} y1={RADAR_CY} x2={RADAR_CX + RADAR_R} y2={RADAR_CY} stroke={color} strokeWidth="1.2" strokeOpacity=".9" filter="url(#hb-glow)"/>
+                <line x1={RADAR_CX} y1={RADAR_CY} x2={RADAR_CX + RADAR_R*0.92} y2={RADAR_CY - RADAR_R*0.18} stroke={color} strokeWidth=".8" strokeOpacity=".35"/>
+                <line x1={RADAR_CX} y1={RADAR_CY} x2={RADAR_CX + RADAR_R*0.78} y2={RADAR_CY - RADAR_R*0.34} stroke={color} strokeWidth=".6" strokeOpacity=".18"/>
+              </g>
+              <g ref={radarLayerRef}/>
+              <circle ref={dotRef} cx={RADAR_CX} cy={RADAR_CY} r="3" fill={color} filter="url(#hb-glow-strong)"/>
+              <text x={x + 4} y={y - 4} fontFamily="JetBrains Mono, monospace" fontSize="9" letterSpacing="2" fill={color} fillOpacity=".7">◇ LIVE</text>
+              <text x={x + s - 4} y={y - 4} textAnchor="end" fontFamily="JetBrains Mono, monospace" fontSize="9" letterSpacing="2" fill={color} fillOpacity=".4">SCAN</text>
+            </g>
+          );
+        })()}
+      </svg>
+    </div>
+  );
+}
+
+window.Heartbeat = Heartbeat;
+  </script>
+
+  <!-- ── Donut ──────────────────────────────────────────────────────── -->
+  <script type="text/babel">
+function Donut({ data, size = 180, thickness = 22, animateKey = 0 }) {
+  const r = (size - thickness) / 2;
+  const C = 2 * Math.PI * r;
+  const total = data.reduce((a,b) => a + b.value, 0) || 1;
+
+  const [progress, setProgress] = React.useState(0);
+  React.useEffect(() => {
+    setProgress(0);
+    let raf;
+    const start = performance.now();
+    const dur = 900;
+    function step(now){
+      const t = Math.min(1, (now - start) / dur);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setProgress(eased);
+      if (t < 1) raf = requestAnimationFrame(step);
+    }
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [animateKey]);
+
+  let acc = 0;
+  const segs = data.map(d => {
+    const frac = (d.value / total) * progress;
+    const len = frac * C;
+    const offset = -acc * C;
+    acc += d.value / total;
+    return { ...d, len, offset, gap: C - len };
+  });
+
+  return (
+    <div style={{ position:'relative', width:size, height:size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <defs>
+          <filter id="donut-glow">
+            <feGaussianBlur stdDeviation="2" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,.04)" strokeWidth={thickness}/>
+        <g transform={`rotate(-90 ${size/2} ${size/2})`} filter="url(#donut-glow)">
+          {segs.map((s, i) => (
+            <circle key={i} cx={size/2} cy={size/2} r={r} fill="none"
+                    stroke={s.color} strokeWidth={thickness}
+                    strokeDasharray={`${s.len} ${s.gap}`}
+                    strokeDashoffset={s.offset}
+                    strokeLinecap="butt"/>
+          ))}
+        </g>
+        <g opacity=".35">
+          {Array.from({ length: 60 }).map((_, i) => {
+            const a = (i / 60) * Math.PI * 2 - Math.PI/2;
+            const r1 = size/2 - 1;
+            const r2 = size/2 - (i % 5 === 0 ? 5 : 3);
+            const x1 = size/2 + Math.cos(a)*r1, y1 = size/2 + Math.sin(a)*r1;
+            const x2 = size/2 + Math.cos(a)*r2, y2 = size/2 + Math.sin(a)*r2;
+            return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(167,255,62,.4)" strokeWidth=".5"/>;
+          })}
+        </g>
+      </svg>
+      <div className="donut-center">
+        <div>
+          <div className="top">Top</div>
+          <div className="num">{data.length}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+window.Donut = Donut;
+  </script>
+
+  <!-- ── App ────────────────────────────────────────────────────────── -->
+  <script type="text/babel">
+const { useState, useEffect, useRef, useMemo } = React;
+
+const TWEAK_DEFAULTS = {
+  "scanlines": true,
+  "density": "regular",
+};
+
+const HEARTBEAT_COLOR = '#ffd83a';
+
+// LEMX is the chain's native token — only token that can be staked.
+const LEMX_TOKEN = { sym: 'LEMX', color: '#ffe14a' };
+
+// All 19 tracked tokens with colors and a quick lookup map
+const TOKENS = [
+  { sym:'LFLX',  color:'#a7ff3e' },
+  { sym:'LPAY',  color:'#3bf0d0' },
+  { sym:'LLOT',  color:'#b67dff' },
+  { sym:'LBNK',  color:'#5fb8ff' },
+  { sym:'LMED',  color:'#ff8a6b' },
+  { sym:'LMLN',  color:'#ff5fa8' },
+  { sym:'CTFZ',  color:'#ffc857' },
+  { sym:'LTVL',  color:'#7affb0' },
+  { sym:'LLUX',  color:'#d4ff5f' },
+  { sym:'LSQZ',  color:'#ff9f43' },
+  { sym:'HXDX',  color:'#5fffe6' },
+  { sym:'PUP',   color:'#ff6b6b' },
+  { sym:'HXBT',  color:'#9b8cff' },
+  { sym:'TIXA',  color:'#ff5fd1' },
+  { sym:'NXYS',  color:'#65d7ff' },
+  { sym:'STH',   color:'#bff05f' },
+  { sym:'MHSA',  color:'#cf6bff' },
+  { sym:'RMC',   color:'#5fffaf' },
+  { sym:'SMART', color:'#ffb05f' },
+];
+const TOKEN_BY_SYM = Object.fromEntries(TOKENS.map(t => [t.sym, t]));
+
+function formatK(n){
+  if (n >= 1_000_000) return (n/1_000_000).toFixed(1)+'M';
+  if (n >= 1000) return (n/1000).toFixed(1)+'K';
+  if (n === 0) return '0.00';
+  return n.toFixed(2);
+}
+
+function pad(n){ return String(n).padStart(2,'0') }
+
+function shortenHash(hash) {
+  if (!hash || hash.length < 12) return hash || '—';
+  return hash.slice(0, 6) + '…' + hash.slice(-4);
+}
+
+function useClock(){
+  const [t, setT] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setT(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return t;
+}
+
+function Logo({ size = 54 }){
+  return (
+    <div className="logo" style={{ width:size, height:size }}>
+      <svg viewBox="0 0 32 32" fill="none">
+        <path d="M16 3 L27 9 L27 23 L16 29 L5 23 L5 9 Z"
+              stroke="#ffd83a" strokeWidth="1.4" strokeLinejoin="round"
+              fill="rgba(255,216,58,.06)"/>
+        <path d="M16 9 L22 12.5 L22 19.5 L16 23 L10 19.5 L10 12.5 Z"
+              stroke="#ffd83a" strokeWidth="1" strokeLinejoin="round" opacity=".7"/>
+        <circle cx="16" cy="16" r="2" fill="#ffd83a"/>
+      </svg>
+    </div>
+  );
+}
+
+function KpiCard({ label, value, sub, color }){
+  return (
+    <div className="kpi-card panel">
+      <span className="corners"><i className="tr"/><i className="bl"/></span>
+      <div className="kpi-label">{label}</div>
+      <div className="kpi-value" style={{ color }}>{value}</div>
+      <div className="kpi-sub">{sub}</div>
+    </div>
+  );
+}
+
+function PanelHeader({ icon = true, children, right }){
+  return (
+    <div className="panel-hd">
+      {icon && <span className="diamond" />}
+      <span>{children}</span>
+      <span className="sep" />
+      {right}
+    </div>
+  );
+}
+
+function BurnLogFeed({ logs }){
+  const scrollRef = useRef(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [logs]);
+  return (
+    <div className="panel log-panel" style={{ flex:1, display:'flex', flexDirection:'column', minHeight:0 }}>
+      <span className="corners"><i className="tr"/><i className="bl"/></span>
+      <PanelHeader>Recent Events</PanelHeader>
+      <div className="log-feed" ref={scrollRef}>
+        {logs.length === 0 && (
+          <div style={{ color:'var(--dim2)', fontSize:11, letterSpacing:'.14em', padding:'6px 0' }}>
+            Waiting for events…
+          </div>
+        )}
+        {logs.map((b, i) => (
+          <div key={b.id} className="log-line" style={{ '--c': b.color }}>
+            <span className="log-ts">[{b.ts}]</span>
+            <span className="log-sym">{b.sym.padEnd(5,' ')}</span>
+            {b.kind === 'stake'
+              ? <span className="log-stk">STK</span>
+              : <span className="log-arrow">→</span>}
+            <span className="log-amt">{formatK(b.val).padStart(8,' ')}</span>
+            <span className="log-hash">{b.hash}</span>
+            {i === logs.length - 1 && <span className="log-cursor"/>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BurnDistribution({ tokens, animateKey }){
+  // top 4 tokens by burn volume that have received at least one event
+  const top = [...tokens].filter(t => t.val > 0).sort((a,b) => b.val - a.val).slice(0, 4);
+  if (top.length === 0) {
+    return (
+      <div className="panel" style={{ display:'flex', flexDirection:'column' }}>
+        <span className="corners"><i className="tr"/><i className="bl"/></span>
+        <PanelHeader>Burn Distribution</PanelHeader>
+        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--dim2)', fontSize:11, letterSpacing:'.14em', padding:24 }}>
+          Waiting for data…
+        </div>
+      </div>
+    );
+  }
+  const total = top.reduce((a,b) => a + b.val, 0);
+  const data = top.map(t => ({ label:t.sym, value:t.val, color:t.color }));
+  return (
+    <div className="panel" style={{ display:'flex', flexDirection:'column' }}>
+      <span className="corners"><i className="tr"/><i className="bl"/></span>
+      <PanelHeader>Burn Distribution</PanelHeader>
+      <div style={{ display:'grid', gridTemplateColumns:'auto 1fr', gap:18, padding:'14px 18px 16px', alignItems:'center', flex:1, justifyContent:'center' }}>
+        <Donut data={data} animateKey={animateKey} size={150} thickness={18}/>
+        <div style={{ display:'flex', flexDirection:'column', gap:12, justifyContent:'center' }}>
+          {data.map((d, i) => {
+            const pct = Math.round((d.value / total) * 100);
+            return (
+              <div key={i} style={{ display:'grid', gridTemplateColumns:'auto 56px 1fr 40px', alignItems:'center', gap:10, color:d.color }}>
+                <span style={{ width:8, height:8, borderRadius:2, background:d.color, boxShadow:`0 0 8px ${d.color}`}}/>
+                <span style={{ fontWeight:700, letterSpacing:'.04em', fontSize:12 }}>{d.label}</span>
+                <span className="bar-track">
+                  <span className="bar-fill" style={{ width: `${pct}%` }}/>
+                </span>
+                <span className="mono-num" style={{ fontSize:12, textAlign:'right', fontWeight:700 }}>{pct}%</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NetworkStatus({ burnEvents }){
+  const terminalWhite = '#e8eee0';
+  return (
+    <div className="panel" style={{ display:'flex', flexDirection:'column' }}>
+      <span className="corners"><i className="tr"/><i className="bl"/></span>
+      <PanelHeader>Network Status</PanelHeader>
+      <div style={{ padding:'14px 18px 14px', display:'flex', flexDirection:'column', flex:1, justifyContent:'center', alignItems:'center', gap:10 }}>
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8, textAlign:'center' }}>
+          <span className="lbl-mini">Burn Events</span>
+          <div style={{ color:terminalWhite, textShadow:`0 0 18px ${terminalWhite}40`, fontWeight:700, fontSize:72, lineHeight:1, letterSpacing:'-.02em' }}
+               className="mono-num">{burnEvents}</div>
+          <span className="lbl-mini mute2">All Tokens · 30 Days</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function pctColor(p){
+  if (p < 25) return '#ff5f5f';
+  if (p < 50) return '#ff9a3a';
+  if (p < 75) return '#ffe14a';
+  return '#7aff8a';
+}
+
+function BurnProgress({ pct }){
+  const N = 22;
+  const filled = Math.round((pct / 100) * N);
+  const color = pctColor(pct);
+  const cells = [];
+  for (let i = 0; i < N; i++){
+    if (i < filled)          cells.push({ ch:'█', on:true });
+    else if (i === filled)   cells.push({ ch:'▓', on:false });
+    else if (i === filled+1) cells.push({ ch:'▒', on:false });
+    else                     cells.push({ ch:'░', on:false });
+  }
+  return (
+    <div className="tok-prog" style={{ '--pc': color }}>
+      <span className="tok-prog-bk">[</span>
+      <span className="tok-prog-bar">
+        {cells.map((c, i) => (
+          <span key={i} className={c.on ? 'pc on' : 'pc off'}>{c.ch}</span>
+        ))}
+      </span>
+      <span className="tok-prog-bk">]</span>
+      <span className="tok-prog-pct">{pct.toFixed(1)}%</span>
+    </div>
+  );
+}
+
+function TokenCard({ t, isolated, dimmed, onClick, pct }){
+  return (
+    <div className={'tok ' + (isolated ? 'active' : '') + ' ' + (dimmed ? 'dim' : '')}
+         onClick={onClick}
+         style={{ '--card': t.color }}>
+      <div className="tok-hd">
+        <div className="tok-sym" style={{ color: t.val > 0 ? t.color : 'var(--ink)' }}>{t.sym}</div>
+        <div className="tok-cnt" style={{ color: t.color, borderColor: t.color, opacity: t.count > 0 ? 1 : .55 }}>{t.count}</div>
+      </div>
+      <div>
+        <div className="tok-lbl">30-Day Burned</div>
+        <div className="tok-val" style={{ color: t.color }}>{formatK(t.val)}</div>
+      </div>
+      {pct != null && (
+        <>
+          <div className="tok-prog-cap">Total Supply Burned</div>
+          <BurnProgress pct={pct}/>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ConnStatus({ status }) {
+  return (
+    <span className={`conn-status ${status}`}>
+      <span className="dot"/>
+      {status === 'connected' ? 'LIVE' : status === 'connecting' ? 'CONNECTING…' : 'OFFLINE'}
+    </span>
+  );
+}
+
+function App(){
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const clock = useClock();
+  const [isolated, setIsolated] = useState(null);
+  const [animateKey, setAnimateKey] = useState(0);
+  const [connStatus, setConnStatus] = useState('connecting');
+
+  // per-token burn accumulator (30-day rolling window)
+  const [tokenStats, setTokenStats] = useState(
+    Object.fromEntries(TOKENS.map(tk => [tk.sym, { count: 0, val: 0 }]))
+  );
+  // LEMX staking totals (30-day rolling window)
+  const [lemxStaked, setLemxStaked] = useState(0);
+  const [stakeCount, setStakeCount] = useState(0);
+  // supply burn percentages from server { [sym]: number } (lifetime)
+  const [supplyPcts, setSupplyPcts] = useState({});
+
+  const pushEventRef = useRef(null);
+  const [logs, setLogs] = useState([]);
+  const logIdRef = useRef(1);
+
+  // merge live stats into token grid
+  const tokensWithStats = useMemo(() => TOKENS.map(tk => ({
+    ...tk,
+    count: tokenStats[tk.sym]?.count || 0,
+    val:   tokenStats[tk.sym]?.val   || 0,
+  })), [tokenStats]);
+
+  const totalBurnEvents = Object.values(tokenStats).reduce((a, b) => a + b.count, 0);
+
+  function appendLog(sym, color, amount, hash, kind = 'burn') {
+    const now = new Date();
+    const ts = pad(now.getHours())+':'+pad(now.getMinutes())+':'+pad(now.getSeconds());
+    setLogs(prev => {
+      const next = [...prev, {
+        id: logIdRef.current++,
+        sym, color, kind,
+        val:  amount,
+        ts,
+        hash: shortenHash(hash),
+      }];
+      return next.length > 12 ? next.slice(next.length - 12) : next;
+    });
+  }
+
+  // Socket.IO — live data from server
+  useEffect(() => {
+    // Auto-detect the correct Socket.IO URL based on how the page is accessed
+    const socketUrl = window.location.protocol === 'file:' 
+      ? 'http://localhost:3001'  // Opening index.html directly
+      : window.location.origin;   // Served through Express (same origin)
+    
+    console.log('Connecting to Socket.IO at:', socketUrl);
+    const socket = io(socketUrl);
+
+    socket.on('connect', () => {
+      console.log('🔥 Connected to burn server');
+      setConnStatus('connected');
+    });
+    socket.on('disconnect',    () => setConnStatus('disconnected'));
+    socket.on('connect_error', () => setConnStatus('disconnected'));
+
+    socket.on('burn', ({ token, amount, hash }) => {
+      const tkColor = TOKEN_BY_SYM[token]?.color || '#a7ff3e';
+
+      if (pushEventRef.current) pushEventRef.current({ color: tkColor, sym: token, kind: 'burn' });
+      appendLog(token, tkColor, amount, hash, 'burn');
+
+      setTokenStats(prev => ({
+        ...prev,
+        [token]: { count: (prev[token]?.count || 0) + 1, val: (prev[token]?.val || 0) + amount },
+      }));
+      setAnimateKey(k => k + 1);
+    });
+
+    socket.on('supply', ({ token, pct }) => {
+      setSupplyPcts(prev => ({ ...prev, [token]: pct }));
+    });
+
+    socket.on('stats30d', ({ burnStats, lemxStats }) => {
+      // Initialize with 30-day stats from server
+      const newStats = {};
+      for (const [token, data] of Object.entries(burnStats)) {
+        newStats[token] = { count: data.count, val: data.val };
+      }
+      setTokenStats(newStats);
+      setLemxStaked(lemxStats.val);
+      setStakeCount(lemxStats.count);
+    });
+
+    socket.on('stake', ({ amount, hash }) => {
+      const tkColor = LEMX_TOKEN.color;
+
+      if (pushEventRef.current) pushEventRef.current({ color: tkColor, sym: 'LEMX', kind: 'stake' });
+      appendLog('LEMX', tkColor, amount, hash, 'stake');
+
+      setLemxStaked(prev => prev + amount);
+      setStakeCount(prev => prev + 1);
+    });
+
+    return () => socket.disconnect();
+  }, []);
+
+  useEffect(() => { setAnimateKey(k => k + 1) }, [isolated]);
+
+  // scanlines toggle
+  useEffect(() => {
+    const host = document.getElementById('scanlines-host');
+    if (!host) return;
+    host.innerHTML = '';
+    if (t.scanlines){
+      const d = document.createElement('div');
+      d.className = 'scanlines';
+      host.appendChild(d);
+    }
+  }, [t.scanlines]);
+
+  const padScale = t.density === 'compact' ? 0.8 : t.density === 'comfy' ? 1.15 : 1;
+
+  return (
+    <div className="stage" style={{ padding: 14 * padScale }}>
+      {/* TOP BAR */}
+      <div className="topbar">
+        <div className="panel brand-pane" style={{ padding:'14px 20px' }}>
+          <span className="corners"><i className="tr"/><i className="bl"/></span>
+          <Logo size={64}/>
+          <div style={{ marginLeft:16, display:'flex', flexDirection:'column', gap:6, minWidth:0 }}>
+            <div className="lbl-mini">Lemon Chain Network</div>
+            <div style={{ fontSize:34, fontWeight:700, letterSpacing:'.04em', color:'var(--ink)', textShadow:'0 0 18px rgba(255,216,58,.35)', lineHeight:1 }}>
+              BURN <span style={{ color:HEARTBEAT_COLOR }}>MONITOR</span>
+            </div>
+          </div>
+          <div style={{ marginLeft:'auto', display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8 }}>
+            <ConnStatus status={connStatus}/>
+          </div>
+        </div>
+
+        <KpiCard label="LEMX Staked (30d)" value={formatK(lemxStaked)} sub={stakeCount + ' Stake Events'} color="var(--amber)"/>
+
+        <div className="panel kpi-card" style={{ alignItems:'flex-end' }}>
+          <span className="corners"><i className="tr"/><i className="bl"/></span>
+          <div className="kpi-label">Sys Time</div>
+          <div className="clock" style={{ color:'var(--ink)' }}>
+            {pad(clock.getHours())}:{pad(clock.getMinutes())}:{pad(clock.getSeconds())}
+          </div>
+          <div className="clock-date">
+            {pad(clock.getDate())} {clock.toLocaleString('en', { month:'short' }).toUpperCase()} {clock.getFullYear()}
+          </div>
+        </div>
+      </div>
+
+      {/* HEARTBEAT */}
+      <div className="panel" style={{ padding: '0 0 8px' }}>
+        <span className="corners"><i className="tr"/><i className="bl"/></span>
+        <PanelHeader right={
+          <span className="lbl-mini" style={{ display:'flex', gap:14 }}>
+            <span style={{ color:HEARTBEAT_COLOR, textShadow:`0 0 8px ${HEARTBEAT_COLOR}` }}>● {totalBurnEvents}</span>
+            <span className="mute2">burns / 30 days</span>
+          </span>
+        }>
+          Network Heartbeat
+        </PanelHeader>
+        <div style={{ padding:'6px 0 0' }}>
+          <Heartbeat color={HEARTBEAT_COLOR} height={170} pushEventRef={pushEventRef}/>
+        </div>
+      </div>
+
+      {/* MID */}
+      <div className="mid">
+        <BurnLogFeed logs={logs}/>
+        <BurnDistribution tokens={tokensWithStats} animateKey={animateKey}/>
+        <NetworkStatus burnEvents={totalBurnEvents}/>
+      </div>
+
+      {/* TOKEN GRID */}
+      <div>
+        <div className="caption-row" style={{ marginBottom:10 }}>
+          <span>// Token Overview</span>
+          <span className="mute2">·</span>
+          <span>{TOKENS.length} Tokens</span>
+          <span className="mute2">·</span>
+          <span className="mute">Click to isolate</span>
+          <span className="sep"/>
+          <span className="term-prompt">
+            <span className="caret">{'>_'}</span>
+            <span>Secured by Lemon Chain</span>
+            <span className="term-cursor"/>
+          </span>
+        </div>
+        <div className="grid-tok">
+          {tokensWithStats.map(tk => (
+            <TokenCard key={tk.sym}
+              t={tk}
+              isolated={isolated === tk.sym}
+              dimmed={isolated && isolated !== tk.sym}
+              onClick={() => setIsolated(s => s === tk.sym ? null : tk.sym)}
+              pct={supplyPcts[tk.sym] ?? null}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* TWEAKS */}
+      <TweaksPanel title="Tweaks">
+        <TweakSection label="Display"/>
+        <TweakToggle label="Scanlines" value={t.scanlines} onChange={v => setTweak('scanlines', v)}/>
+        <TweakRadio  label="Density"   value={t.density}   options={['compact','regular','comfy']} onChange={v => setTweak('density', v)}/>
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>
